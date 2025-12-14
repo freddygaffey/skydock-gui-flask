@@ -44,7 +44,8 @@ class Drone:
 
         self.drone_state = DroneData()
 
-        self.question =  {} # {"question:ans="?"or acceped or denied}
+        self.questions =  {} # {"question:ans="?"or acceped or denied}
+        self.questions_history = {}
 
     def start_automatic_message_passer(self,update_rate=1):
         self.set_a_message_interval("GLOBAL_POSITION_INT", interval=update_rate)
@@ -55,18 +56,40 @@ class Drone:
 
         def message_in(message):
             self.drone_state.message_passer(message)
-            self.
+            if message._type == "MAV_SEVERITY_INFO":
+                self.answer_question(message.text)
             
         def passer():
             while True:
                     msg = self.connection.recv_msg()
                     if msg: message_in(msg)
-                
-
         threading.Thread(target=passer).start() 
 
     
-        
+    def add_question(self,question):
+        self.questions[question] = "?"
+    def get_unanswerd_question(self):
+        for i in self.questions.keys:
+            if self.questions[i] == "?":
+                return i
+
+    def answer_question(self,question,answer):
+        answer = answer.lower()
+        if answer not in ["accepted","denied"]: raise ValueError(f"you made a typo {answer = } is not valid")
+
+        self.questions_history[str(int(time.time()))] = {question: answer}
+        del(self.questions[question])
+
+        message = str(question) 
+        def send_question(message):
+            if len(message) >= 47:
+                self.send_text_message(message)
+                return None
+            else:
+                raise ValueError("work out how to split question over manny trasmition")
+
+        threading.Thread(target=send_question,args=(question,)).start() # use theding not to slow the program if sennding reeeeeeely long questions                   
+
     def send_text_message(self,message:str):
         if len(message) > 50-4:
             raise ValueError("the send text message must be under 50 chars")
