@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Drone Control Panel</title>
+</head>
+<body>
+    <h1>Drone Control Panel</h1>
+    
+    <!-- Takeoff Command -->
+    <div>
+        <label for="takeoffHeight">Takeoff Height (m):</label>
+        <input type="number" id="takeoffHeight" placeholder="Enter height">
+        <button id="takeoffBtn">Takeoff</button>
+    </div>
+
+    <!-- You can add more buttons here following the same pattern -->
+
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>
