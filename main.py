@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from drone import check_drone_question
+from drone import drone
 
 app = Flask(__name__)
 
@@ -16,25 +16,19 @@ def handle_command():
 
 @app.route("/incoming_question")
 def incoming_q_check():
-    question = check_drone_question()
+    question = drone.get_unanswerd_question()
     return question if question else "None"
 
 @app.route("/question_answer", methods=["POST"])
 def question_answer():
+#    {'command': 'Accepted', 'question': ' takoff'} 
     data = request.json
     print(data)
-    return "hi go away"
-    # question = data.get("question")  # <- the question text
-    # answer = data.get("command")     # <- the user answer ("Accepted" / "Rejected")
-
-    # # Now you have both
-    # print(f"Question: {question}")
-    # print(f"User answered: {answer}")
-
-    # # Optionally, do something with it (e.g., feed it to your simulator)
-    # return jsonify(status="Response received")
+    drone.answer_question(question=data["question"],answer=data["command"])
+    return "all good"
+    
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
 

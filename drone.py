@@ -5,7 +5,8 @@ import math
 from dataclasses import dataclass, field
 
 class Drone:
-    # how to pair run sudo rfcomm bind /dev/rfcomm0 <mack adress of raido>
+    drone_conected = False
+        # how to pair run sudo rfcomm bind /dev/rfcomm0 <mack adress of raido>
     # sudo rfcomm bind /dev/rfcomm0 04:24:11:19:05:77
     #  sudo rfcomm release all # to remove all connnectons
 
@@ -23,8 +24,8 @@ class Drone:
         
         if path_to_uav == None:
             self.connection = None 
-        else:
-            self.connect(path_to_uav)           
+        # else:
+        #     self.connect(path_to_uav)           
 
         @dataclass
         class DroneData:
@@ -39,12 +40,13 @@ class Drone:
             home: dict = field(default_factory=lambda: {"lat": -35.3628875, "lon": 149.1651714})
 
             def message_passer(self, msg):
-                if time.time % 30 == 0:
+                if int(time.time()) % 100 == 0:
                     print("make a actual passer in drone.py line 41")
 
         self.drone_state = DroneData()
 
         self.questions =  {} # {"question:ans="?"or acceped or denied}
+        self._questions_lock = threading.Lock()
         self.questions_history = {}
 
     def start_automatic_message_passer(self,update_rate=1):
@@ -56,39 +58,46 @@ class Drone:
 
         def message_in(message):
             self.drone_state.message_passer(message)
-            if message._type == "MAV_SEVERITY_INFO":
-                self.answer_question(message.text)
+            self.add_question(message)
             
         def passer():
             while True:
                     msg = self.connection.recv_msg()
                     if msg: message_in(msg)
-        threading.Thread(target=passer).start() 
+        threading.Thread(target=passer,daemon=True).start() 
 
-    
-    def add_question(self,question):
-        self.questions[question] = "?"
+    def add_question(self,message):
+        if message._type == "STATUSTEXT" and "drone:" in message.text:
+            message = message.text
+            question = message.replace("drone:","")
+            print(f"adding question {question} this ind in drone.py")
+            with self._questions_lock:
+                self.questions[question] = "?"
+        
     def get_unanswerd_question(self):
-        for i in self.questions.keys:
-            if self.questions[i] == "?":
-                return i
+        for i in self.questions.keys():
+            with self._questions_lock:
+                if self.questions[i] == "?":
+                    return i
+        return None
 
     def answer_question(self,question,answer):
         answer = answer.lower()
-        if answer not in ["accepted","denied"]: raise ValueError(f"you made a typo {answer = } is not valid")
+        if answer not in ["accepted","rejected"]: raise ValueError(f"you made a typo {answer = } is not valid")
 
         self.questions_history[str(int(time.time()))] = {question: answer}
-        del(self.questions[question])
+        with self._questions_lock:
+            del(self.questions[question])
 
-        message = str(question) 
+        message = str([question,answer])
         def send_question(message):
-            if len(message) >= 47:
+            if len(message) <= 47:
                 self.send_text_message(message)
                 return None
             else:
                 raise ValueError("work out how to split question over manny trasmition")
 
-        threading.Thread(target=send_question,args=(question,)).start() # use theding not to slow the program if sennding reeeeeeely long questions                   
+        threading.Thread(target=send_question,args=(message,),daemon=True).start() # use theding not to slow the program if sennding reeeeeeely long questions                   
 
     def send_text_message(self,message:str):
         if len(message) > 50-4:
@@ -101,10 +110,12 @@ class Drone:
 
     def connect(self,path_to_uav):
         """connect to the droen and also act like a init for the Telmerty class like redefing the update class"""
-        self.connection = mavutil.mavlink_connection(path_to_uav, baud=115200)
-        self.connection.wait_heartbeat()
-        self.start_automatic_message_passer()
-        
+        if not Drone.drone_conected:
+            self.connection = mavutil.mavlink_connection(path_to_uav, baud=115200)
+            self.connection.wait_heartbeat()
+            self.start_automatic_message_passer()
+        else:
+            print("tryed to open drone conection twice")
         
     def disconnect(self):
         self.connection = None
@@ -122,12 +133,12 @@ class Drone:
             interval, # param2: Interval in microseconds
             0,0,0,0,0)
  
-if __name__ == "__main__":
-    drone = Drone()
-    drone.connect("/dev/rfcomm0")
-    while True:
-        print(drone.drone_state)
-        time.sleep(0.5)
+drone = Drone()
+time.sleep(1)
+drone.connect("/dev/rfcomm0")
+# while True:
+    # drone.connection
+
 
 # question_lock = threading.Lock()
 
