@@ -27,7 +27,9 @@ def question_answer():
     drone.answer_question(question=data["question"],answer=data["command"])
     return "all good"
     
-
+@app.route("/map")
+def desplay_map():
+    return render_template("mapping.html")
 
 if __name__ == "__main__":
     app.run(debug=False)

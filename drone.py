@@ -134,8 +134,9 @@ class Drone:
             0,0,0,0,0)
  
 drone = Drone()
-time.sleep(1)
-drone.connect("/dev/rfcomm0")
+# Auto-connect disabled for Flask app - connect manually when needed
+# time.sleep(1)
+# drone.connect("/dev/rfcomm0")
 # while True:
     # drone.connection
 

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 
 class LineMaker:
-    line_dir=1
     @staticmethod
     def make_line_with_2_points(p1,p2):
         x1,y1 = p1
@@ -14,16 +13,9 @@ class LineMaker:
 
         # y = mx + c 
         # y1 = x1 + c
-        try:
-            m = y/x
-        except ZeroDivisionError:
-            m = y/(x+0.0000000000000000000000001)
-        c = y1 - m * x1 
-        if LineMaker.line_dir == 1:
-            line = Line(m=m, c=c, p1=p1, p2=p2)
-        else: 
-            line = Line(m=m, c=c, p1=p2, p2=p1)
-        LineMaker.line_dir *= -1
+        c = y1 - x1 
+        m = y/x
+        line = Line(m=m, c=c, p1=p1, p2=p2)
         return line
     
     @staticmethod
@@ -33,7 +25,7 @@ class LineMaker:
     
     @staticmethod
     def make_line_with_pg(p1,m):
-        # y1 - y2 = m(x1-x2):
+        # y1 - y2 = m(x1-x2)
         # y = m(x1) - mx + y2 
         # y = -mx + (m(x1) + y2)
         c = (m*p1[0]) + p1[1]
@@ -158,51 +150,43 @@ class CPP:
         return m 
 
     def _find_intersection_points(self,poly, line: Line): 
-        poly = poly + [poly[0]]
-        # print(poly)
-        intersection_points = []
-        for i in range(len(poly)-1):
-            p1 = poly[i]
-            p2 = poly[i+1]
-            # print(p1,p2)
-            poly_line = LineMaker.make_line_with_2_points(p1,p2)
-
-            c1,m1 = line.c , line.m
-            c2,m2 = poly_line.c, poly_line.m
-            m1 = line.m
-
-            if abs(m1 - m2) < 1e-9:
-                continue
-
-            x = (c2-c1) / (m1-m2)
-            y = m1*(x) + c1
-
-            point = (x,y)
-
-            fpe = 1e-9 
-            x_max = max(poly_line.p1[0], poly_line.p2[0]) + fpe
-            x_min = min(poly_line.p1[0], poly_line.p2[0]) - fpe
-
-            y_max = max(poly_line.p1[1], poly_line.p2[1]) + fpe
-            y_min = min(poly_line.p1[1], poly_line.p2[1]) - fpe
-
-            x_check = x_min <= x <= x_max
-            y_check = y_min <= y <= y_max
-            if x_check and y_check:
-                intersection_points.append((x,y))
-
-        # if intersection_points == []:
-        #     raise ValueError("should not be none") 
-
-        if len(intersection_points) % 2 == 0:
-            sort_points = []
-            intersection_points.sort(key=lambda p: (p[0], p[1]))  # or along your scan direction
-            for p1, p2 in zip(intersection_points[0::2], intersection_points[1::2]):
-                sort_points.append((p1,p2))
-            return intersection_points
-        else:
-            raise ValueError("should have retuned a even number")
+        # y = mx + c
+        # m1x + c1 = m2x + c2 
+        # m1x - m2x + c1 = c2 
+        # x(m1 - m2) = (c2 - c1)
+        # x = (c2 - c1) / (m1 - m2)
+        # X = x 
+        # y = m1(X) + c1
+        # Y = m1((c2 - c1) / (m1 - m2)) + c1
         
+        # line is 1
+        # poly is 2
+        intersection = []
+        for i in range(len(poly)-1):
+            i = LineMaker.make_line_with_2_points(poly[i],poly[i+1])
+            if i.m == line.m:
+                continue
+            x = (i.c - line.c) / (i.m - line.m) 
+            y = (line.m * x) + line.c
+            
+            x_min = min(i.p1[0],i.p2[0])
+            x_max = max(i.p1[0],i.p2[0])
+
+            y_min = min(i.p1[1],i.p2[1])
+            y_max = max(i.p1[1],i.p2[1])
+            
+            if x >= x_min and x <= x_max and y >= y_min and y <= y_max:
+                point = (x,y)
+                intersection.append(point)
+
+        if len(intersection) % 2 != 0:
+            raise ValueError("ther should be a even number of intersections")
+        intersection = sorted(intersection, key =lambda i : i[0])
+        
+        if intersection == []:
+            return None
+        return intersection
+
     def _split_up_lines_by_intersections(self,poly,line: Line):
         intersection = self._find_intersection_points(poly,line)
 
@@ -210,7 +194,7 @@ class CPP:
         for i in range(len(intersection)):
             if i % 2 == 1:
                 continue
-            line = LineMaker.make_line_with_2_points(intersection[i],intersection[i+1])
+            line = LineMaker(intersection[i],intersection[i+1])
             lines.append(line) 
 
         return lines
@@ -223,80 +207,152 @@ class CPP:
         center = self._center_of_poly(poly)
         m = self.graident 
 
-        # center = self._center_of_poly(poly)
+        center = self._center_of_poly(poly)
+        m = self.graident 
 
-        # center_line = LineMaker.make_line_with_pg(p1=center,m=m*-1)
-        # lines.append(center_line)
-        for j in [1,-1]:
-            current_line = LineMaker.make_line_with_pg(center,m)
-            c = current_line.c
-            while True:
-                current_line = LineMaker.make_line_with_c_and_m(c=c,m=m)
+        center_line = LineMaker.make_line_with_pg(p1=center,m=m)
+        lines.append(center_line)
 
-                # print(self._find_intersection_points(poly,current_line))
+        current_line = center_line
+        while True:
+            c = current_line.c + scan_width
+            current_line = LineMaker.make_line_with_c_and_m(c=c,m=m)
+            if self._find_intersection_points(poly,current_line) != None:
+                lines.append(current_line)
+            else: break
 
-                if self._find_intersection_points(poly,current_line) != []:
-                    new_lines = self._split_up_lines_by_intersections(poly,current_line) 
-                    for i in new_lines:
-                        lines.append(i)
-                        current_line = i 
-                    c = c - (scan_width)*j
+        lines = lines[::-1] # to make the lines go all in the same direction
 
-                else: break
-            # if j == 1:
-                # lines = lines[::-1] # to make the lines go all in the same direction
+        current_line = center_line
+        while True:
+            c = current_line.c - scan_width
+            current_line = LineMaker.make_line_with_c_and_m(c=c,m=m)
+            if self._find_intersection_points(poly,current_line) != None:
+                lines.append(current_line)
+            else: break
 
-        return lines 
+        return lines
+
+    def _split_array_of_lines(self,poly,lines_array:list[Line]):
+        new_lines_array = []
+        for i in lines_array:
+            i = self._split_up_lines_by_intersections(poly,i)
+
+            if type(i) != list: i = [i]
+
+            new_lines_array.extend(i)
+
+        return new_lines_array
+
 
     def genarate_scan_palth(self,poly,scan_width):
         lon_lat_poly = poly
         poly = self._convert_poly_to_rel(poly)
         lines = self._make_lines(poly,scan_width)
-        new_lines = [] 
-        for i in lines:
-            try:
-                # print(i)
-                new_lines.append(i.p1)
-                new_lines.append(i.p2)
-            except TypeError:
-                pass
-
         return poly,lines
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    from adjustText import adjust_text
 
     def plot_scan_paths(polygon, lines, extend_factor=2.0, polygon_color='k', line_color='r'):
+        """
+        Plot polygon and scan lines.
+
+        Parameters:
+        - polygon: list of (x,y) tuples defining polygon vertices
+        - lines: list of Line objects with .m and .c attributes
+        """
+        print(f"Plotting {len(lines)} lines")
+
         # Plot the polygon
         poly_x = [p[0] for p in polygon] + [polygon[0][0]]
         poly_y = [p[1] for p in polygon] + [polygon[0][1]]
         plt.plot(poly_x, poly_y, f'{polygon_color}-', linewidth=2, label='Polygon')
 
-        point_count = 0
-        text_array = []
-        for line in lines[::-1]:
-            """
-            make points 
-            lable poiints and plot tyhem 
-            """
-            points = line.p1, line.p2
-            x,y = list(zip(*points))
-            plt.plot(x,y)
-            for i in points:
-                point_count += 1
-                # text = plt.annotate(str(point_count), (i[0], i[1]), textcoords="offset points", xytext=(5, 5),fontsize=10, color='blue') 
-                plt.plot(i[0], i[1], 'ro', markersize=4, zorder=5)
-                plt.annotate(str(point_count), i, 
-                     xytext=(25, 25), textcoords='offset points',
-                     fontsize=8, color='blue', fontweight='bold',
-                     bbox=dict(boxstyle='round,pad=0.3', 
-                              facecolor='yellow', alpha=0.8),
-                     arrowprops=dict(arrowstyle='->', 
-                                    color='blue', 
-                                    lw=1),
-                     zorder=10)
-        
+        # Get polygon bounds to extend lines
+        x_min = min(p[0] for p in polygon)
+        x_max = max(p[0] for p in polygon)
+        y_min = min(p[1] for p in polygon)
+        y_max = max(p[1] for p in polygon)
+
+        # Extend bounds
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+        x_min -= x_range * 0.1
+        x_max += x_range * 0.1
+        y_min -= y_range * 0.1
+        y_max += y_range * 0.1
+
+        # For each line, find intersections with polygon edges
+        for idx, line in enumerate(lines):
+            m = line.m
+            c = line.c
+
+            if idx < 3:  # Debug first 3 lines
+                print(f"\n  Analyzing line {idx}: y = {m:.6f}*x + {c:.2f}")
+
+            # Find all intersection points
+            intersections = []
+
+            for i in range(len(polygon)):
+                p1 = polygon[i]
+                p2 = polygon[(i + 1) % len(polygon)]
+
+                x1, y1 = p1
+                x2, y2 = p2
+
+                # Check if edge is vertical
+                if abs(x2 - x1) < 1e-10:
+                    # Vertical edge: x = x1
+                    xi = x1
+                    yi = m * xi + c
+                    # Check if intersection is within the edge
+                    if min(y1, y2) <= yi <= max(y1, y2):
+                        intersections.append((xi, yi))
+                        if idx < 3:
+                            print(f"    Found intersection at ({xi:.2f}, {yi:.2f}) on vertical edge")
+                else:
+                    # Non-vertical edge
+                    m_edge = (y2 - y1) / (x2 - x1)
+                    c_edge = y1 - m_edge * x1
+
+                    # Check if lines are parallel
+                    if abs(m - m_edge) > 1e-10:
+                        # Find intersection
+                        xi = (c_edge - c) / (m - m_edge)
+                        yi = m * xi + c
+
+                        # Check if intersection is within the edge bounds
+                        if min(x1, x2) <= xi <= max(x1, x2) and min(y1, y2) <= yi <= max(y1, y2):
+                            intersections.append((xi, yi))
+                            if idx < 3:
+                                print(f"    Found intersection at ({xi:.2f}, {yi:.2f})")
+
+            # Remove duplicate intersections
+            unique_intersections = []
+            for pt in intersections:
+                is_duplicate = False
+                for upt in unique_intersections:
+                    if abs(pt[0] - upt[0]) < 1e-6 and abs(pt[1] - upt[1]) < 1e-6:
+                        is_duplicate = True
+                        break
+                if not is_duplicate:
+                    unique_intersections.append(pt)
+
+            # Sort by x coordinate
+            unique_intersections.sort(key=lambda p: (p[0], p[1]))
+
+            # Plot line segments between pairs of intersections
+            if len(unique_intersections) >= 2:
+                for i in range(0, len(unique_intersections) - 1, 2):
+                    pt1 = unique_intersections[i]
+                    pt2 = unique_intersections[i + 1]
+                    plt.plot([pt1[0], pt2[0]], [pt1[1], pt2[1]],
+                            color=line_color, linewidth=1, alpha=0.7)
+                print(f"Line {idx}: plotted {len(unique_intersections)//2} segment(s)")
+            else:
+                print(f"Line {idx}: only {len(unique_intersections)} intersections found")
+
         plt.gca().set_aspect('equal', adjustable='box')
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
@@ -304,8 +360,6 @@ if __name__ == "__main__":
         plt.grid(True, alpha=0.3)
         plt.legend()
         plt.show()
-
-    
 
 
     test_data = {
@@ -453,7 +507,21 @@ if __name__ == "__main__":
     "altitude": 20
     }
 
-    obj = CPP(scan_width=1,external_polygon=test_data['boundary'])
-    palth = obj.genarate_scan_palth(test_data['boundary'],scan_width=300)
+    obj = CPP(scan_width=0.0000001,external_polygon=test_data['boundary'])
+    palth = obj.genarate_scan_palth(test_data['boundary'],scan_width=25)
+
+    print(f"\nPolygon has {len(palth[0])} vertices")
+    print(f"Generated {len(palth[1])} lines")
+    print(f"\nFirst 3 polygon points:")
+    for i, p in enumerate(palth[0][:3]):
+        print(f"  Point {i}: ({p[0]:.2f}, {p[1]:.2f})")
+
+    print(f"\nFirst 3 lines:")
+    for i, line in enumerate(palth[1][:3]):
+        print(f"  Line {i}: m={line.m:.6f}, c={line.c:.2f}")
+
+    print(f"\nLast 3 lines:")
+    for i, line in enumerate(palth[1][-3:]):
+        print(f"  Line {len(palth[1])-3+i}: m={line.m:.6f}, c={line.c:.2f}")
 
     plot_scan_paths(palth[0],palth[1])
