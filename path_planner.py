@@ -1,23 +1,25 @@
 # import shapely
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 
 class LineMaker:
-    line_dir=1
+    line_dir: int = 1
+    
     @staticmethod
-    def make_line_with_2_points(p1,p2):
-        x1,y1 = p1
-        x2,y2 = p2
-        x= x1-x2
-        y= y1-y2
+    def make_line_with_2_points(p1: tuple[float, float], p2: tuple[float, float]) -> 'Line':
+        x1, y1 = p1
+        x2, y2 = p2
+        x = x1 - x2
+        y = y1 - y2
 
         # y = mx + c 
         # y1 = x1 + c
         try:
-            m = y/x
+            m = y / x
         except ZeroDivisionError:
-            m = y/(x+0.0000000000000000000000001)
+            m = y / (x + 0.0000000000000000000000001)
         c = y1 - m * x1 
         if LineMaker.line_dir == 1:
             line = Line(m=m, c=c, p1=p1, p2=p2)
@@ -27,42 +29,44 @@ class LineMaker:
         return line
     
     @staticmethod
-    def make_line_with_c_and_m(c,m):
-        line = Line(m = m, c = c)
+    def make_line_with_c_and_m(c: float, m: float) -> 'Line':
+        line = Line(m=m, c=c)
         return line
     
     @staticmethod
-    def make_line_with_pg(p1,m):
+    def make_line_with_pg(p1: tuple[float, float], m: float) -> 'Line':
         # y1 - y2 = m(x1-x2):
         # y = m(x1) - mx + y2 
         # y = -mx + (m(x1) + y2)
-        c = (m*p1[0]) + p1[1]
+        c = (m * p1[0]) + p1[1]
         m = m * -1
-        line = Line(m = m, c = c)
+        line = Line(m=m, c=c)
         return line
         
 @dataclass
 class Line:
     m: float
     c: float = 0
-    p1: tuple = None
-    p2: tuple = None
+    p1: Optional[tuple[float, float]] = None
+    p2: Optional[tuple[float, float]] = None
     traveled_to: bool = False
 
-    def add_start_end_point(self,p1,p2):
+    def add_start_end_point(self, p1: tuple[float, float], p2: tuple[float, float]) -> None:
         self.p1 = p1 
         self.p2 = p2
 
 class CPP:
-    def __init__(self,scan_width,external_polygon):
-        self.scan_width = scan_width
-        self.external_polygon_lon_lat = external_polygon
-        self.graident = self._find_palth_graident(external_polygon)
+    def __init__(self, scan_width: float, external_polygon: list[list[float]], home_lon_lat: Optional[list[float]] = None) -> None:
+        if home_lon_lat == None:
+            home_lon_lat = external_polygon[0]
+        self.scan_width: float = scan_width
+        self.external_polygon_lon_lat: list[list[float]] = external_polygon
+        self.graident: float = self._find_palth_graident(external_polygon)
 
         # can use holes later 
-        self.boundary_poly = self._convert_poly_to_rel(external_polygon)
+        self.boundary_poly: list[tuple[float, float]] = self._convert_poly_to_rel(external_polygon)
 
-    def _convert_gps_to_rel(self,gps_point,poly_center): # -> point (x,y)
+    def _convert_gps_to_rel(self, gps_point: list[float], poly_center: list[float]) -> tuple[float, float]:  # -> point (x,y)
         lon, lat = gps_point
         lon0, lat0 = poly_center
         EARTH_RADIUS = 6371 * 1000
@@ -72,7 +76,7 @@ class CPP:
 
         return (x, y)
 
-    def _convert_rel_to_gps(self,rel_point,poly_center): # -> point (x,y)
+    def _convert_rel_to_gps(self, rel_point: tuple[float, float], poly_center: tuple[float, float]) -> tuple[float, float]:  # -> point (x,y)
         x, y = rel_point
         lon0, lat0 = poly_center
         EARTH_RADIUS = 6371 * 1000 
@@ -85,9 +89,9 @@ class CPP:
         lon = math.degrees(lon) + lon0
         lat = math.degrees(lat) + lat0
 
-        return (lon,lat)
+        return (lon, lat)
 
-    def _center_of_poly(self,poly): # [(lon lat), ] -> (ave_lon,ave_lat)
+    def _center_of_poly(self, poly: list) -> tuple[float, float]:  # [(lon lat), ] -> (ave_lon,ave_lat)
         average_lon = 0
         average_lat = 0 
         sum_lon = 0
@@ -99,85 +103,83 @@ class CPP:
             sum_lon += i[0]
             sum_lat += i[1]
 
-        ave_tuple = (sum_lon/count,sum_lat/count) 
+        ave_tuple = (sum_lon / count, sum_lat / count) 
 
         return ave_tuple
     
-    def _convert_poly_to_rel(self,poly):
+    def _convert_poly_to_rel(self, poly: list[list[float]]) -> list[tuple[float, float]]:
         center = self._center_of_poly(poly)
         rel_poly = []
         for i in poly:
-            point = self._convert_gps_to_rel(i,center)
+            point = self._convert_gps_to_rel(i, center)
             rel_poly.append(point)
-
 
         return rel_poly
         # return shapely.polygons(rel_poly)
 
-    def _convert_rel_poly_to_gps(self,poly):
+    def _convert_rel_poly_to_gps(self, poly: list[tuple[float, float]]) -> list[tuple[float, float]]:
         center = self._center_of_poly(poly)
         rel_poly = []
         for i in poly:
-            point = self._convert_rel_to_gps(i,center)
+            point = self._convert_rel_to_gps(i, center)
             rel_poly.append(point)
-
 
         return rel_poly
 
-    def _dist_between_points(self,p1,p2): # (x,y) -> dist in m
-        x1,y1 = p1
-        x2,y2 = p2
-        x= x1-x2
-        y= y1-y2
+    def _dist_between_points(self, p1: tuple[float, float], p2: tuple[float, float]) -> float:  # (x,y) -> dist in m
+        x1, y1 = p1
+        x2, y2 = p2
+        x = x1 - x2
+        y = y1 - y2
 
-        dist = ((x)** 2 + (y)** 2)** 0.5
+        dist = ((x) ** 2 + (y) ** 2) ** 0.5
         return dist
     
-    def _find_palth_graident(self,poly):
+    def _find_palth_graident(self, poly: list[list[float]]) -> float:
         max_dist = 0 
-        points = [(0,0),(0,0)]
+        points = [(0, 0), (0, 0)]
 
-        for i in range(len(poly)-1):
+        for i in range(len(poly) - 1):
             point1 = poly[i]
-            point2 = poly[i+1]
-            if max_dist <= (new_dist := self._dist_between_points(point1,point2)):
+            point2 = poly[i + 1]
+            if max_dist <= (new_dist := self._dist_between_points(point1, point2)):
                 max_dist = new_dist
-                points = [point1,point2]
+                points = [point1, point2]
         
         # y = mx + c 
         # pg fomual is y1 - y2 = m(x1- x2)
         # m = (y1 - y2) / (x1 - x2)
 
-        x1,y1 = point1
-        x2,y2 = point2
-        x= x1-x2
-        y= y1-y2
+        x1, y1 = point1
+        x2, y2 = point2
+        x = x1 - x2
+        y = y1 - y2
 
-        m = y/x
+        m = y / x
 
         return m 
 
-    def _find_intersection_points(self,poly, line: Line): 
+    def _find_intersection_points(self, poly: list[tuple[float, float]], line: Line) -> list[tuple[float, float]]: 
         poly = poly + [poly[0]]
         # print(poly)
         intersection_points = []
-        for i in range(len(poly)-1):
+        for i in range(len(poly) - 1):
             p1 = poly[i]
-            p2 = poly[i+1]
+            p2 = poly[i + 1]
             # print(p1,p2)
-            poly_line = LineMaker.make_line_with_2_points(p1,p2)
+            poly_line = LineMaker.make_line_with_2_points(p1, p2)
 
-            c1,m1 = line.c , line.m
-            c2,m2 = poly_line.c, poly_line.m
+            c1, m1 = line.c, line.m
+            c2, m2 = poly_line.c, poly_line.m
             m1 = line.m
 
             if abs(m1 - m2) < 1e-9:
                 continue
 
-            x = (c2-c1) / (m1-m2)
-            y = m1*(x) + c1
+            x = (c2 - c1) / (m1 - m2)
+            y = m1 * (x) + c1
 
-            point = (x,y)
+            point = (x, y)
 
             fpe = 1e-9 
             x_max = max(poly_line.p1[0], poly_line.p2[0]) + fpe
@@ -189,7 +191,7 @@ class CPP:
             x_check = x_min <= x <= x_max
             y_check = y_min <= y <= y_max
             if x_check and y_check:
-                intersection_points.append((x,y))
+                intersection_points.append((x, y))
 
         # if intersection_points == []:
         #     raise ValueError("should not be none") 
@@ -198,24 +200,25 @@ class CPP:
             sort_points = []
             intersection_points.sort(key=lambda p: (p[0], p[1]))  # or along your scan direction
             for p1, p2 in zip(intersection_points[0::2], intersection_points[1::2]):
-                sort_points.append((p1,p2))
-            return intersection_points
+                sort_points.append((p1, p2))
         else:
             raise ValueError("should have retuned a even number")
+
+        return intersection_points
         
-    def _split_up_lines_by_intersections(self,poly,line: Line):
-        intersection = self._find_intersection_points(poly,line)
+    def _split_up_lines_by_intersections(self, poly: list[tuple[float, float]], line: Line) -> list[Line]:
+        intersection = self._find_intersection_points(poly, line)
 
         lines = []
         for i in range(len(intersection)):
             if i % 2 == 1:
                 continue
-            line = LineMaker.make_line_with_2_points(intersection[i],intersection[i+1])
+            line = LineMaker.make_line_with_2_points(intersection[i], intersection[i + 1])
             lines.append(line) 
 
         return lines
 
-    def _make_lines(self,poly,scan_width=None):
+    def _make_lines(self, poly: list[tuple[float, float]], scan_width: Optional[float] = None) -> list[Line]:
         if not scan_width:
             scan_width = self.scan_width
 
@@ -227,31 +230,30 @@ class CPP:
 
         # center_line = LineMaker.make_line_with_pg(p1=center,m=m*-1)
         # lines.append(center_line)
-        for j in [1,-1]:
-            current_line = LineMaker.make_line_with_pg(center,m)
+        for j in [1, -1]:
+            current_line = LineMaker.make_line_with_pg(center, m)
             c = current_line.c
             while True:
-                current_line = LineMaker.make_line_with_c_and_m(c=c,m=m)
+                current_line = LineMaker.make_line_with_c_and_m(c=c, m=m)
 
                 # print(self._find_intersection_points(poly,current_line))
 
-                if self._find_intersection_points(poly,current_line) != []:
-                    new_lines = self._split_up_lines_by_intersections(poly,current_line) 
+                if self._find_intersection_points(poly, current_line) != []:
+                    new_lines = self._split_up_lines_by_intersections(poly, current_line) 
                     for i in new_lines:
                         lines.append(i)
                         current_line = i 
-                    c = c - (scan_width)*j
+                    c = c - (scan_width) * j
 
                 else: break
             # if j == 1:
                 # lines = lines[::-1] # to make the lines go all in the same direction
-
         return lines 
 
-    def genarate_scan_palth(self,poly,scan_width):
+    def genarate_scan_palth(self, poly: list[list[float]], scan_width: float) -> tuple[list[tuple[float, float]], list[Line]]:
         lon_lat_poly = poly
         poly = self._convert_poly_to_rel(poly)
-        lines = self._make_lines(poly,scan_width)
+        lines = self._make_lines(poly, scan_width)
         new_lines = [] 
         for i in lines:
             try:
@@ -261,13 +263,13 @@ class CPP:
             except TypeError:
                 pass
 
-        return poly,lines
+        return poly, lines
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from adjustText import adjust_text
 
-    def plot_scan_paths(polygon, lines, extend_factor=2.0, polygon_color='k', line_color='r'):
+    def plot_scan_paths(polygon: list[tuple[float, float]], lines: list[Line], extend_factor: float = 2.0, polygon_color: str = 'k', line_color: str = 'r') -> None:
         # Plot the polygon
         poly_x = [p[0] for p in polygon] + [polygon[0][0]]
         poly_y = [p[1] for p in polygon] + [polygon[0][1]]
@@ -281,8 +283,8 @@ if __name__ == "__main__":
             lable poiints and plot tyhem 
             """
             points = line.p1, line.p2
-            x,y = list(zip(*points))
-            plt.plot(x,y)
+            x, y = list(zip(*points))
+            plt.plot(x, y)
             for i in points:
                 point_count += 1
                 # text = plt.annotate(str(point_count), (i[0], i[1]), textcoords="offset points", xytext=(5, 5),fontsize=10, color='blue') 
@@ -453,7 +455,7 @@ if __name__ == "__main__":
     "altitude": 20
     }
 
-    obj = CPP(scan_width=1,external_polygon=test_data['boundary'])
-    palth = obj.genarate_scan_palth(test_data['boundary'],scan_width=300)
+    obj = CPP(scan_width=1, external_polygon=test_data['boundary'])
+    palth = obj.genarate_scan_palth(test_data['boundary'], scan_width=300)
 
-    plot_scan_paths(palth[0],palth[1])
+    plot_scan_paths(palth[0], palth[1])
