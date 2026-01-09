@@ -3,6 +3,7 @@ import time
 from pymavlink import mavutil
 import math
 from dataclasses import dataclass, field
+import hashlib
 
 class Drone:
     drone_conected = False
@@ -57,6 +58,8 @@ class Drone:
 
 
         def message_in(message):
+            if message._type == "STATUSTEXT":
+                print(message)
             self.drone_state.message_passer(message)
             self.add_question(message)
             
@@ -67,9 +70,9 @@ class Drone:
         threading.Thread(target=passer,daemon=True).start() 
 
     def add_question(self,message):
-        if message._type == "STATUSTEXT" and "drone:" in message.text:
+        if message._type == "STATUSTEXT" and "msg:" in message.text:
             message = message.text
-            question = message.replace("drone:","")
+            question = message.replace("msg:","")
             print(f"adding question {question} this ind in drone.py")
             with self._questions_lock:
                 self.questions[question] = "?"
@@ -107,6 +110,17 @@ class Drone:
         f"gc: {message}".encode("utf-8")
         # b"gc:" + message
         )
+
+    def send_float(self,key:str,value:float):
+        key = hashlib.sha1(key.encode()).hexdigest()[:9]
+        print("the hased key is ",key)
+        
+        value = float(value)
+        key = key.encode("ascii")
+        boot_time = int(time.time())
+        self.connection.mav.named_value_float_send(
+            boot_time,key,value)
+        print(f"send a float {key = } {value = }")
 
     def connect(self,path_to_uav):
         """connect to the droen and also act like a init for the Telmerty class like redefing the update class"""

@@ -15,9 +15,20 @@
     <div>
         <label for="takeoffHeight">Takeoff Height (m):</label>
         <input type="number" id="takeoffHeight" placeholder="Enter height">
-        <button id="takeoffBtn">Takeoff</button>
+        <button id="takeoffBtn">send Takeoff hight</button>
     </div>
 
+    <div>
+        <label for="scanAltHight">Scan hight relative from home (m):</label>
+        <input type="number" id="scanAltHight" placeholder="Enter height">
+        <button id="scanAltBut">send alt</button>
+    </div>
+
+    <div>
+        <label for="scanPrecisionValue">Precision to travle to point:</label>
+        <input type="number" id="scanPrecisionValue" placeholder="Enter height">
+        <button id="scanPrecisionBut">send alt</button>
+    </div>
     <!-- You can add more buttons here following the same pattern -->
 
     <script src="{{ url_for('static', filename='main.js') }}"></script>

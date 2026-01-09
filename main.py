@@ -26,11 +26,20 @@ def question_answer():
     print(data)
     drone.answer_question(question=data["question"],answer=data["command"])
     return "all good"
+
+@app.route("/send/float", methods=["POST"])
+def send_float_pymavlink():
+    data = request.json
+    drone.send_float(data["command"],data["parameter"])
+    print(data)
+    return "all good"
+
     
 @app.route("/map")
 def desplay_map():
     return render_template("mapping.html")
 
 if __name__ == "__main__":
+    drone.connect("/dev/rfcomm90")
     app.run(debug=False)
 
